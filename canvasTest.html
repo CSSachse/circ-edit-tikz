@@ -1,0 +1,289 @@
+<link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'>
+<style type="text/CSS">
+body{
+font-family: 'Open Sans' Arial sans-serif;
+}
+#toolbar{
+position:fixed;
+bottom:0px;
+left:50%;
+margin-left:-180px;
+width:360px;
+background-color:#cccccc;
+border:1px solid #b3b3b3;
+border-radius:5px;
+padding:10px;
+}
+#panel{
+position:fixed;
+top:0px;
+right:0px;
+width:350px;
+height:100%;
+background-color:#cccccc;
+background:linear-gradient(#e6e6e6,#cccccc);
+border:1px solid #b0b0b0;
+overflow-y:scroll;
+}
+.paneltitle{
+position:fixed;
+background-color:#b0b0b0;
+background:linear-gradient(#d0d0d0,#c0c0c0);
+position:absolute;
+left:0px;
+top:0px;
+width:100%;
+box-shadow:0px 3px 5px 1px #333333;
+z-index:5;
+}
+.paneltitle p{
+margin:5px;
+}
+.paneltitle #searchbox{
+	padding:5px;
+	width:100%;
+}
+.paneloption{
+	position:relative;
+	top:6em;
+	border-bottom:1px solid #a0a0a0;
+	height:60px;
+	padding-left:70px;
+}
+.paneloption img{
+	position:absolute;
+	left:0px;
+	top:0px;
+	height:60px;
+	width:60px;
+	background-color:white;
+}
+.paneloptionset{
+	position:absolute;
+	left:0px;
+	width:100%;
+	display:none;
+}
+.paneloption.active{
+	background-color:rgba(0,0,0,.1);
+	box-shadow:inset 0px 0px 4px 2px #333333;
+}
+</style>
+<body onkeydown="keydownting(event.which);" onkeyup="keyupting(event.which);" onload="initscreen();">
+<canvas id="cancan" height="500" width="700" onmousedown="if(MODE=='draw'){mousedownting(event);}" onmousemove="if(MODE=='draw'){mousemoveting(event);}" onmouseup="if(MODE=='draw'){mouseupting(event);}" onclick="if(MODE=='select'){clickting(event);}"  style="position:absolute;left:0px;top:0px;"></canvas>
+<div id="toolbar">
+<button type="button" onclick="MODE='draw';panelupdate();">draw</button>
+<button type="button" onclick="MODE='select';panelupdate();">select</button>
+<button type="button" onclick="MODE='export';panelupdate();">export</button>
+<button type="button" onclick="">import</button>
+<button type="button" onclick="ZOOM+=.1;redraw();">zoom in</button>
+<button type="button" onclick="ZOOM-=.1;redraw();">zoom out</button>
+</div>
+<div id="panel">
+	<div class="paneltitle"><p>CIRC.EDIT<br/>Currently in <span id="modeindicator" style="text-decoration:underline"></span> mode.<br/></p><input type="text" placeholder="Search!" id="searchbox" onkeypress="searchkeyting(event.which);"/></div>
+	<div class="paneloptionset" id="draw_panelopts" style="display:block;"> 
+		<!--We establish a kinda data binding thingy here. It would be good to use a web framework here, but fuck Angular so no.-->
+		<div class="paneloption" onclick="chooseEl(this);"><img src=""/><b id="name">Wire</b><br/>[connector]: '--' </div>
+		<div class="paneloption"><img src=""/><b>Resistor</b><br/>[connector]: 'resistor' </div>
+		<div class="paneloption"><img src=""/><b>Capacitor</b><br/>[connector]: 'capacitor' </div>
+		<div class="paneloption"><img src=""/><b>Inductor</b><br/>[connector]: 'inductor' </div>
+		<div class="paneloption"><img src=""/></div>
+		<div class="paneloption"><img src=""/></div>
+		<div class="paneloption"><img src=""/><b>Wire</b><br/>[connector]: '--' </div>
+		<div class="paneloption"><img src=""/></div>
+		<div class="paneloption"><img src=""/></div>
+	</div>
+	<div class="paneloptionset" id="select_panelopts"> 
+	go on select stuff
+	<button onclick="currentCircuit.delete(SELECTED);">delete!</button>
+	</div>
+	<div class="paneloptionset" id="export_panelopts"> 
+	export shit yay
+	</div>
+</div>
+
+<script type="text/javascript">
+//Global transient variables
+	MOUSEDOWN=false;				//currently holding down mouse
+	MOUSEDOWNCOORDS=new Object();	//where did we start clicking
+	MOUSEDOWNCOORDS.x;				
+	MOUSEDOWNCOORDS.y;
+	ISCURRNODE=false;				//Is our current selection a node (as opposed to a linky thingy)
+	NODENAME="--";					//What element are we placing
+	CANX=700;						//Canvas dimensions
+	CANY=500;
+	ZOOM=1.0;
+	MODE="draw";					//Are we currently drawing or editing (selecting)
+	SELECTED=[];					//What do we have selected
+	SELMULTOPT=false;				//Are we able to select multiple elements? (holding down ctrl)
+	KEYSPRESSED={17:false,8:false,46:false};					//Dictionary of keys currently held down. 17=ctrl, 8=bksp, 46=del, 
+	ctx=document.getElementById("cancan").getContext("2d");
+
+//Update panel and other GUI elements after changing mode/tool
+	function panelupdate(){
+		document.getElementById("modeindicator").innerHTML=MODE;
+		for(i=0;i<3;i++){
+			document.getElementsByClassName("paneloptionset")[i].style.display="none";
+		}
+		document.getElementById(MODE+"_panelopts").style.display="block";
+	}
+	
+	
+//Initialize state upon loading to make canvas right size, etc.
+	function initscreen(){
+		CANX=window.innerWidth||document.documentElement.clientWidth||document.body.clientWidth;
+		CANY=window.innerHeight||document.documentElement.clientHeight||document.body.clientHeight;
+		CANX-=350;
+		document.getElementById("cancan").width=CANX;
+		document.getElementById("cancan").height=CANY;
+		document.getElementById("modeindicator").innerHTML=MODE;
+	}
+
+//Keyboard functions and shortcut detection (ctrl, ctrlz, ctrly, ctrlc, ctrl v, etc. most in future)
+	function keydownting(c){
+		KEYSPRESSED[c]=true;
+	}
+	function keyupting(c){
+		KEYSPRESSED[c]=false;
+	}
+	
+//Select thingy in clickting
+	function clickting(e){
+		x=nativecoords(e.pageX);
+		y=nativecoords(e.pageY);
+		mindistsq=1;
+		mindistnode=0;
+		added=false;
+		for(i=0;i<currentCircuit.elList.length;i++){
+			eloc=currentCircuit.elList[i];
+			for(j=0;j<1;j+=.02){
+				distsq=Math.pow(x-(eloc.start[0]+j*(eloc.end[0]-eloc.start[0])),2)+Math.pow(y-(eloc.start[1]+j*(eloc.end[1]-eloc.start[1])),2);
+				if(distsq<mindistsq){
+					if(distsq<.02){
+						SELECTED.push(i);
+						added=true;
+						break;
+					}
+					mindistsq=distsq;
+					mindistnode=i;
+				}
+			}
+		}
+		if(!added&&mindistsq<.25){//if we didnt add one for ridiculous closeness but still close enough
+			SELECTED.push(mindistnode);
+		}
+	}
+
+//coordinate transforms for convenience, .05 rasterization size
+	function nativecoords(x){
+		return Math.round(x/(10*ZOOM))/2;
+	}
+	function displaycoords(x){
+		return Math.round(ZOOM*x*20);
+	}
+	
+//mouse tracking functions for draw mode
+	function mousedownting(e){
+		MOUSEDOWN=true;
+		MOUSEDOWNCOORDS.x=nativecoords(e.pageX);
+		MOUSEDOWNCOORDS.y=nativecoords(e.pageY);
+	}
+	function mousemoveting(e){
+		if(MOUSEDOWN){
+			redraw();
+			ctx.beginPath();
+			ctx.moveTo(displaycoords(MOUSEDOWNCOORDS.x),displaycoords(MOUSEDOWNCOORDS.y));
+			ctx.lineTo(displaycoords(nativecoords(e.pageX)),displaycoords(nativecoords(e.pageY)));
+			ctx.stroke();
+		}
+	}
+	function mouseupting(e){
+		MOUSEDOWN=false;
+		currentCircuit.addEl(new Element(ISCURRNODE,NODENAME,MOUSEDOWNCOORDS.x,MOUSEDOWNCOORDS.y,nativecoords(e.pageX),nativecoords(e.pageY)));
+	}
+
+//drawing/redrawing function
+	function redraw(){
+		ctx.clearRect(0,0,CANX,CANY);
+		for(i=0;i<currentCircuit.elList.length;i++){
+			currentCircuit.elList[i].draw();
+		}
+	}
+
+//Circuit element class
+	function Element(isnode,elementname,startx,starty,endx,endy){
+		this.isnode=isnode;
+		this.elementname=elementname;
+		this.start=[startx,starty];
+		this.end=[endx,endy];
+		this.toLATEX=function(){
+			return "lol";
+		}
+		this.draw=function(){
+			ctx.beginPath();
+			ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+			ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+			ctx.stroke();
+		}
+	}
+
+//Object for storing state
+	function Circuit(){
+		//elList has format [[isnode,elementname,startx,starty,endx,endy]]
+		//if(isnode), endx, endy are ignored
+		this.elList=[];
+		this.addEl=function(el){
+			this.elList.push(el);
+		}
+		this.toLATEX=function(){
+			return "\\begin{circuitikz}draw"+""+";\\end{circuitikz}";
+		}
+		this.delete=function(delList){
+			for(i=0;i<delList.length;i++){
+				this.elList.splice(delList.pop(),1);
+			}
+			redraw();
+		}
+	}
+	currentCircuit=new Circuit();
+
+//Do the search thingy with the header searchbar
+	function searchkeyting(k){
+		
+	}
+	
+//Make components as JS object
+	complist={
+		'Wire':{
+			
+		},
+		'Resistor':{
+		
+		},
+		'Capacitor':{
+		
+		},
+		'Inductor':{
+		
+		},
+		'Voltage Source':{
+		
+		},
+		'Current Source':{
+		
+		},
+		'Controlled Voltage Source':{
+		
+		},
+		'Controlled Current Source':{
+		
+		},
+		
+	}
+	
+//Choose selected node thingy
+	function chooseEl(that){
+		that.className="paneloption active";
+	}
+
+</script>
