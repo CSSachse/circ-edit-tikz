@@ -49,6 +49,7 @@ margin:5px;
 	border-bottom:1px solid #a0a0a0;
 	height:60px;
 	padding-left:70px;
+	cursor:pointer;
 }
 .paneloption img{
 	position:absolute;
@@ -68,37 +69,65 @@ margin:5px;
 	background-color:rgba(0,0,0,.1);
 	box-shadow:inset 0px 0px 4px 2px #333333;
 }
+.paneloption:hover{
+	background-color:rgba(0,0,0,.05);
+}
+.exportwarning{
+	font-size:.8em;
+	font-family:monospace;
+}
+.tikzname{
+	font-size:.8em;
+	font-family:monospace;
+}
+#fileimport{
+	position:absolute;
+	left:0px;
+	top:0px;
+	height:100%;
+	width:100%;
+	background-color:rgba(0,0,0,.2);;
+	display:none;
+	text-align:center;
+	z-index:10;
+}
+#fileimport input{
+	position:absolute;
+	left:45%;
+	top:50%;
+}
 </style>
 <body onkeydown="keydownting(event.which);" onkeyup="keyupting(event.which);" onload="initscreen();">
 <canvas id="cancan" height="500" width="700" onmousedown="if(MODE=='draw'){mousedownting(event);}" onmousemove="if(MODE=='draw'){mousemoveting(event);}" onmouseup="if(MODE=='draw'){mouseupting(event);}" onclick="if(MODE=='select'){clickting(event);}"  style="position:absolute;left:0px;top:0px;"></canvas>
 <div id="toolbar">
-<button type="button" onclick="MODE='draw';panelupdate();">draw</button>
+<button type="button" onclick="MODE='draw';panelupdate();SELECTED=[];">draw</button>
 <button type="button" onclick="MODE='select';panelupdate();">select</button>
-<button type="button" onclick="MODE='export';panelupdate();">export</button>
-<button type="button" onclick="">import</button>
+<button type="button" onclick="MODE='export';panelupdate();SELECTED=[];">export</button>
+<button type="button" onclick="document.getElementById('fileimport').style.display='block';">import</button>
 <button type="button" onclick="ZOOM+=.1;redraw();">zoom in</button>
 <button type="button" onclick="ZOOM-=.1;redraw();">zoom out</button>
 </div>
+
+<div id="fileimport" onclick="this.style.display='none';">
+	<input type="file" onchange="loadfile(this.files[0]);"/>
+</div>
+
 <div id="panel">
-	<div class="paneltitle"><p>CIRC.EDIT<br/>Currently in <span id="modeindicator" style="text-decoration:underline"></span> mode.<br/></p><input type="text" placeholder="Search!" id="searchbox" onkeypress="searchkeyting(event.which);"/></div>
+	<div class="paneltitle"><p>CIRC.EDIT<br/>Currently in <span id="modeindicator" style="text-decoration:underline"></span> mode.<br/></p><input type="text" placeholder="Search!" id="searchbox" onkeypress="searchkeyting(event.which);"/>
+	</div>
 	<div class="paneloptionset" id="draw_panelopts" style="display:block;"> 
-		<!--We establish a kinda data binding thingy here. It would be good to use a web framework here, but fuck Angular so no.-->
-		<div class="paneloption" onclick="chooseEl(this);"><img src=""/><b id="name">Wire</b><br/>[connector]: '--' </div>
-		<div class="paneloption"><img src=""/><b>Resistor</b><br/>[connector]: 'resistor' </div>
-		<div class="paneloption"><img src=""/><b>Capacitor</b><br/>[connector]: 'capacitor' </div>
-		<div class="paneloption"><img src=""/><b>Inductor</b><br/>[connector]: 'inductor' </div>
-		<div class="paneloption"><img src=""/></div>
-		<div class="paneloption"><img src=""/></div>
-		<div class="paneloption"><img src=""/><b>Wire</b><br/>[connector]: '--' </div>
-		<div class="paneloption"><img src=""/></div>
-		<div class="paneloption"><img src=""/></div>
+		
 	</div>
 	<div class="paneloptionset" id="select_panelopts"> 
-	go on select stuff
-	<button onclick="currentCircuit.delete(SELECTED);">delete!</button>
+		<div class="paneloption" onclick="currentCircuit.delete(SELECTED);"><img src=""/><b id="name">DELETE</b><br/>Deletes current element.</div>
+		<div class="paneloption" onclick="currentCircuit.delete(SELECTED);"><img src=""/><b id="name">Current annotation</b><br/>Adds current symbol to element</div>
 	</div>
 	<div class="paneloptionset" id="export_panelopts"> 
-	export shit yay
+		<div class="paneloption" onclick="myWindow = window.open('data:text/html,' + encodeURIComponent(JSON.stringify(currentCircuit)),'_blank', 'width=200,height=100');myWindow.focus();"><img src=""/><b id="name">EXPORT JSON</b><br/>Exports as .json file. <br/><span class="exportwarning">May be reimported and edited later.</span></div>
+		<div class="paneloption" onclick="myWindow = window.open('data:text/html,' + encodeURIComponent(currentCircuit.toLATEX()),'_blank', 'width=200,height=100');myWindow.focus();"><img src=""/><b id="name">EXPORT LATEX</b><br/>Exports as .tex code. <br/><span class="exportwarning">CAN NOT BE EDITED WITH CIRC.EDIT</span></div>
+		
+		<div class="paneloption" onclick="currentCircuit.delete(SELECTED);"><img src=""/><b id="name">EXPORT PNG</b><br/>Exports as .png image. <br/><span class="exportwarning">CAN NOT BE EDITED WITH CIRC.EDIT</span></div>
+		<div class="paneloption" onclick="localStorage.setItem('savedstate',JSON.stringify(currentCircuit.elList));"><img src=""/><b id="name">SAVE</b><br/>Saves to browser's local storage<br/><span class="exportwarning">WILL AUTOMATICALLY OPEN IN FUTURE</span></div>
 	</div>
 </div>
 
@@ -109,15 +138,17 @@ margin:5px;
 	MOUSEDOWNCOORDS.x;				
 	MOUSEDOWNCOORDS.y;
 	ISCURRNODE=false;				//Is our current selection a node (as opposed to a linky thingy)
-	NODENAME="--";					//What element are we placing
+	NODENAME="Wire";				//What element are we placing
 	CANX=700;						//Canvas dimensions
 	CANY=500;
 	ZOOM=1.0;
 	MODE="draw";					//Are we currently drawing or editing (selecting)
 	SELECTED=[];					//What do we have selected
-	SELMULTOPT=false;				//Are we able to select multiple elements? (holding down ctrl)
 	KEYSPRESSED={17:false,8:false,46:false};					//Dictionary of keys currently held down. 17=ctrl, 8=bksp, 46=del, 
+	NEWEL="";
 	ctx=document.getElementById("cancan").getContext("2d");
+	currentCircuit=new Circuit();
+	
 
 //Update panel and other GUI elements after changing mode/tool
 	function panelupdate(){
@@ -126,8 +157,12 @@ margin:5px;
 			document.getElementsByClassName("paneloptionset")[i].style.display="none";
 		}
 		document.getElementById(MODE+"_panelopts").style.display="block";
+		if(MODE=='draw'){
+			document.getElementById("searchbox").disabled=false;
+		}else{
+			document.getElementById("searchbox").disabled=true;
+		}
 	}
-	
 	
 //Initialize state upon loading to make canvas right size, etc.
 	function initscreen(){
@@ -137,7 +172,757 @@ margin:5px;
 		document.getElementById("cancan").width=CANX;
 		document.getElementById("cancan").height=CANY;
 		document.getElementById("modeindicator").innerHTML=MODE;
+		populateComponents("all");
+		//Try to open up last saved state if possible
+		if(!(localStorage.getItem('savedstate')==null)){
+			currentCircuit.elList=JSON.parse(localStorage.getItem('savedstate'));
+			sampleEl=new Element(NODENAME,complist[NODENAME]['texname'],ISCURRNODE,MOUSEDOWNCOORDS.x,MOUSEDOWNCOORDS.y,nativecoords(e.pageX),nativecoords(e.pageY),{});
+			//add functions back to each element after jsonification
+			for(i=0;i<currentCircuit.elList.length;i++){
+				currentCircuit.elList[i].draw=complist[currentCircuit.elList[i].propername].drawfunc;
+				currentCircuit.elList[i].drawSel=sampleEl.drawSel;
+				currentCircuit.elList[i].toLATEX=sampleEl.toLATEX;
+			}
+			redraw();
+		}
 	}
+
+//Make components as JSON thing
+	complist={
+		'Wire':{
+			'texname':'short',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Resistor':{
+			'texname':'american resistor',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]*1/12+.25*unit[1]),displaycoords(resstart[1]+unit[1]*1/12-.25*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]*3/12-.25*unit[1]),displaycoords(resstart[1]+unit[1]*3/12+.25*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]*5/12+.25*unit[1]),displaycoords(resstart[1]+unit[1]*5/12-.25*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]*7/12-.25*unit[1]),displaycoords(resstart[1]+unit[1]*7/12+.25*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]*9/12+.25*unit[1]),displaycoords(resstart[1]+unit[1]*9/12-.25*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]*11/12-.25*unit[1]),displaycoords(resstart[1]+unit[1]*11/12+.25*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Capacitor':{
+			'texname':'capacitor',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0])/2-unit[0]*.17,(this.end[1]+this.start[1])/2-unit[1]*.17];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.45*unit[1]),displaycoords(resstart[1]-.45*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.45*unit[1]),displaycoords(resstart[1]+.45*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+.34*unit[0]+.45*unit[1]),displaycoords(resstart[1]+.34*unit[1]-.45*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.34*unit[0]-.45*unit[1]),displaycoords(resstart[1]+.34*unit[1]+.45*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+.34*unit[0]),displaycoords(resstart[1]+.34*unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Inductor':{
+			'texname':'inductor',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+					ctx.bezierCurveTo(	displaycoords(resstart[0]+0/3.4*unit[0]+.3*unit[1]),displaycoords(resstart[1]+0/3.4*unit[1]-.3*unit[0]),
+										displaycoords(resstart[0]+1/3.4*unit[0]+.3*unit[1]),displaycoords(resstart[1]+1/3.4*unit[1]-.3*unit[0]),
+										displaycoords(resstart[0]+1/3.4*unit[0]),displaycoords(resstart[1]+1/3.4*unit[1]));
+					ctx.bezierCurveTo(	displaycoords(resstart[0]+1/3.4*unit[0]-.3*unit[1]),displaycoords(resstart[1]+1/3.4*unit[1]+.3*unit[0]),
+										displaycoords(resstart[0]+.6/3.4*unit[0]-.3*unit[1]),displaycoords(resstart[1]+.6/3.4*unit[1]+.3*unit[0]),
+										displaycoords(resstart[0]+.6/3.4*unit[0]),displaycoords(resstart[1]+.6/3.4*unit[1]));
+										
+					ctx.bezierCurveTo(	displaycoords(resstart[0]+.6/3.4*unit[0]+.3*unit[1]),displaycoords(resstart[1]+.6/3.4*unit[1]-.3*unit[0]),
+										displaycoords(resstart[0]+1.6/3.4*unit[0]+.3*unit[1]),displaycoords(resstart[1]+1.6/3.4*unit[1]-.3*unit[0]),
+										displaycoords(resstart[0]+1.6/3.4*unit[0]),displaycoords(resstart[1]+1.6/3.4*unit[1]));
+					ctx.bezierCurveTo(	displaycoords(resstart[0]+1.6/3.4*unit[0]-.3*unit[1]),displaycoords(resstart[1]+1.6/3.4*unit[1]+.3*unit[0]),
+										displaycoords(resstart[0]+1.2/3.4*unit[0]-.3*unit[1]),displaycoords(resstart[1]+1.2/3.4*unit[1]+.3*unit[0]),
+										displaycoords(resstart[0]+1.2/3.4*unit[0]),displaycoords(resstart[1]+1.2/3.4*unit[1]));
+										
+					ctx.bezierCurveTo(	displaycoords(resstart[0]+1.2/3.4*unit[0]+.3*unit[1]),displaycoords(resstart[1]+1.2/3.4*unit[1]-.3*unit[0]),
+										displaycoords(resstart[0]+2.2/3.4*unit[0]+.3*unit[1]),displaycoords(resstart[1]+2.2/3.4*unit[1]-.3*unit[0]),
+										displaycoords(resstart[0]+2.2/3.4*unit[0]),displaycoords(resstart[1]+2.2/3.4*unit[1]));
+					ctx.bezierCurveTo(	displaycoords(resstart[0]+2.2/3.4*unit[0]-.3*unit[1]),displaycoords(resstart[1]+2.2/3.4*unit[1]+.3*unit[0]),
+										displaycoords(resstart[0]+1.8/3.4*unit[0]-.3*unit[1]),displaycoords(resstart[1]+1.8/3.4*unit[1]+.3*unit[0]),
+										displaycoords(resstart[0]+1.8/3.4*unit[0]),displaycoords(resstart[1]+1.8/3.4*unit[1]));
+					
+					ctx.bezierCurveTo(	displaycoords(resstart[0]+1.8/3.4*unit[0]+.3*unit[1]),displaycoords(resstart[1]+1.8/3.4*unit[1]-.3*unit[0]),
+										displaycoords(resstart[0]+2.8/3.4*unit[0]+.3*unit[1]),displaycoords(resstart[1]+2.8/3.4*unit[1]-.3*unit[0]),
+										displaycoords(resstart[0]+2.8/3.4*unit[0]),displaycoords(resstart[1]+2.8/3.4*unit[1]));
+					ctx.bezierCurveTo(	displaycoords(resstart[0]+2.8/3.4*unit[0]-.3*unit[1]),displaycoords(resstart[1]+2.8/3.4*unit[1]+.3*unit[0]),
+										displaycoords(resstart[0]+2.4/3.4*unit[0]-.3*unit[1]),displaycoords(resstart[1]+2.4/3.4*unit[1]+.3*unit[0]),
+										displaycoords(resstart[0]+2.4/3.4*unit[0]),displaycoords(resstart[1]+2.4/3.4*unit[1]));
+										
+					ctx.bezierCurveTo(	displaycoords(resstart[0]+2.4/3.4*unit[0]+.3*unit[1]),displaycoords(resstart[1]+2.4/3.4*unit[1]-.3*unit[0]),
+										displaycoords(resstart[0]+3.4/3.4*unit[0]+.3*unit[1]),displaycoords(resstart[1]+3.4/3.4*unit[1]-.3*unit[0]),
+										displaycoords(resstart[0]+3.4/3.4*unit[0]),displaycoords(resstart[1]+3.4/3.4*unit[1]));
+					
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Voltage Source':{
+			'texname':'american voltage source',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.5*unit[0]+.5),displaycoords(resstart[1]+.5*unit[1]));
+				ctx.arc(displaycoords(resstart[0]+.5*unit[0]),displaycoords(resstart[1]+.5*unit[1]),displaycoords(.5),0,2*Math.PI,true);
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.1*unit[0]),displaycoords(resstart[1]+.1*unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.3*unit[0]),displaycoords(resstart[1]+.3*unit[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.7*unit[0]),displaycoords(resstart[1]+.7*unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.9*unit[0]),displaycoords(resstart[1]+.9*unit[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.8*unit[0]+.1*unit[1]),displaycoords(resstart[1]+.8*unit[1]-.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]-.1*unit[1]),displaycoords(resstart[1]+.8*unit[1]+.1*unit[0]));
+				ctx.stroke();
+			}
+		},
+		'Current Source':{
+			'texname':'american current source',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.5*unit[0]+.5),displaycoords(resstart[1]+.5*unit[1]));
+				ctx.arc(displaycoords(resstart[0]+.5*unit[0]),displaycoords(resstart[1]+.5*unit[1]),displaycoords(.5),0,2*Math.PI,true);
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.1*unit[0]),displaycoords(resstart[1]+.1*unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.9*unit[0]),displaycoords(resstart[1]+.9*unit[1]));
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(resstart[0]+.9*unit[0]),displaycoords(resstart[1]+.9*unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]+.1*unit[1]),displaycoords(resstart[1]+.8*unit[1]-.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]-.1*unit[1]),displaycoords(resstart[1]+.8*unit[1]+.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.9*unit[0]),displaycoords(resstart[1]+.9*unit[1]));
+				ctx.fill();
+			}
+		},
+		'Controlled Voltage Source':{
+			'texname':'american controlled voltage source',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.5*unit[0]+.5*unit[1]),displaycoords(resstart[1]+.5*unit[1]-.5*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.5*unit[0]-.5*unit[1]),displaycoords(resstart[1]+.5*unit[1]+.5*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				
+				ctx.moveTo(displaycoords(resstart[0]+.1*unit[0]),displaycoords(resstart[1]+.1*unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.3*unit[0]),displaycoords(resstart[1]+.3*unit[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.7*unit[0]),displaycoords(resstart[1]+.7*unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.9*unit[0]),displaycoords(resstart[1]+.9*unit[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.8*unit[0]+.1*unit[1]),displaycoords(resstart[1]+.8*unit[1]-.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]-.1*unit[1]),displaycoords(resstart[1]+.8*unit[1]+.1*unit[0]));
+				ctx.stroke();
+			}
+		},
+		'Controlled Current Source':{
+			'texname':'american controlled current source',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.5*unit[0]+.5*unit[1]),displaycoords(resstart[1]+.5*unit[1]-.5*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.5*unit[0]-.5*unit[1]),displaycoords(resstart[1]+.5*unit[1]+.5*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.1*unit[0]),displaycoords(resstart[1]+.1*unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.9*unit[0]),displaycoords(resstart[1]+.9*unit[1]));
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(resstart[0]+.9*unit[0]),displaycoords(resstart[1]+.9*unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]+.1*unit[1]),displaycoords(resstart[1]+.8*unit[1]-.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]-.1*unit[1]),displaycoords(resstart[1]+.8*unit[1]+.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.9*unit[0]),displaycoords(resstart[1]+.9*unit[1]));
+				ctx.fill();
+			}
+		},
+		'Label':{
+			'texname':'',
+			'isnode':true,
+			'drawfunc':function(){
+				ctx.fillText(this.tag["l"],displaycoords(this.end[0]),displaycoords(this.end[1]));
+			}
+		},
+		'Ground':{
+			'texname':'ground',
+			'isnode':true,
+			'drawfunc':function(){
+				theta=this.tag["rotate"]*Math.PI/180;
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)));
+				ctx.moveTo(displaycoords(this.start[0]-.3*Math.sin(theta)-.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)+.4*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)+.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)-.4*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.37*Math.sin(theta)-.3*Math.cos(theta)),displaycoords(this.start[1]+.37*Math.cos(theta)+.3*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.37*Math.sin(theta)+.3*Math.cos(theta)),displaycoords(this.start[1]+.37*Math.cos(theta)-.3*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.44*Math.sin(theta)-.2*Math.cos(theta)),displaycoords(this.start[1]+.44*Math.cos(theta)+.2*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.44*Math.sin(theta)+.2*Math.cos(theta)),displaycoords(this.start[1]+.44*Math.cos(theta)-.2*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.51*Math.sin(theta)-.1*Math.cos(theta)),displaycoords(this.start[1]+.51*Math.cos(theta)+.1*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.51*Math.sin(theta)+.1*Math.cos(theta)),displaycoords(this.start[1]+.51*Math.cos(theta)-.1*Math.sin(theta)));
+				ctx.stroke();
+			}
+		},
+		'Reference Ground':{
+			'texname':'rground',
+			'isnode':true,
+			'drawfunc':function(){
+				theta=this.tag["rotate"]*Math.PI/180;
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)));
+				ctx.moveTo(displaycoords(this.start[0]-.3*Math.sin(theta)-.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)+.4*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)+.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)-.4*Math.sin(theta)));
+				ctx.stroke();
+			}
+		},
+		'Signal Ground':{
+			'texname':'sground',
+			'isnode':true,
+			'drawfunc':function(){
+				theta=this.tag["rotate"]*Math.PI/180;
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)));
+				ctx.moveTo(displaycoords(this.start[0]-.3*Math.sin(theta)-.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)+.4*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)+.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)-.4*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.55*Math.sin(theta)),displaycoords(this.start[1]+.55*Math.cos(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)-.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)+.4*Math.sin(theta)));
+				ctx.stroke();
+			}
+		},
+		'Noiseless Ground':{
+			'texname':'nground',
+			'isnode':true,
+			'drawfunc':function(){
+				theta=this.tag["rotate"]*Math.PI/180;
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)));
+				ctx.moveTo(displaycoords(this.start[0]-.3*Math.sin(theta)-.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)+.4*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)+.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)-.4*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.37*Math.sin(theta)-.3*Math.cos(theta)),displaycoords(this.start[1]+.37*Math.cos(theta)+.3*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.37*Math.sin(theta)+.3*Math.cos(theta)),displaycoords(this.start[1]+.37*Math.cos(theta)-.3*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.44*Math.sin(theta)-.2*Math.cos(theta)),displaycoords(this.start[1]+.44*Math.cos(theta)+.2*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.44*Math.sin(theta)+.2*Math.cos(theta)),displaycoords(this.start[1]+.44*Math.cos(theta)-.2*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.51*Math.sin(theta)-.1*Math.cos(theta)),displaycoords(this.start[1]+.51*Math.cos(theta)+.1*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.51*Math.sin(theta)+.1*Math.cos(theta)),displaycoords(this.start[1]+.51*Math.cos(theta)-.1*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.35*Math.sin(theta)+.35*Math.cos(theta)),displaycoords(this.start[1]+.35*Math.cos(theta)+.35*Math.sin(theta)));
+				ctx.arc(displaycoords(this.start[0]-.35*Math.sin(theta)),displaycoords(this.start[1]+.35*Math.cos(theta)),displaycoords(.37),theta,theta+Math.PI,true);
+				ctx.stroke();
+			}
+		},
+		'Protective Ground':{
+			'texname':'pground',
+			'isnode':true,
+			'drawfunc':function(){
+				theta=this.tag["rotate"]*Math.PI/180;
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)));
+				ctx.moveTo(displaycoords(this.start[0]-.3*Math.sin(theta)-.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)+.4*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)+.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)-.4*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.37*Math.sin(theta)-.3*Math.cos(theta)),displaycoords(this.start[1]+.37*Math.cos(theta)+.3*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.37*Math.sin(theta)+.3*Math.cos(theta)),displaycoords(this.start[1]+.37*Math.cos(theta)-.3*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.44*Math.sin(theta)-.2*Math.cos(theta)),displaycoords(this.start[1]+.44*Math.cos(theta)+.2*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.44*Math.sin(theta)+.2*Math.cos(theta)),displaycoords(this.start[1]+.44*Math.cos(theta)-.2*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.51*Math.sin(theta)-.1*Math.cos(theta)),displaycoords(this.start[1]+.51*Math.cos(theta)+.1*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.51*Math.sin(theta)+.1*Math.cos(theta)),displaycoords(this.start[1]+.51*Math.cos(theta)-.1*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.35*Math.sin(theta)+.35),displaycoords(this.start[1]+.35*Math.cos(theta)));
+				ctx.arc(displaycoords(this.start[0]-.35*Math.sin(theta)),displaycoords(this.start[1]+.35*Math.cos(theta)),displaycoords(.37),0,2*Math.PI,false);
+				ctx.stroke();
+			}
+		},
+		'Chassis Ground':{
+			'texname':'cground',
+			'isnode':true,
+			'drawfunc':function(){
+				theta=this.tag["rotate"]*Math.PI/180;
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.6*Math.sin(theta)-.15*Math.cos(theta)),displaycoords(this.start[1]+.6*Math.cos(theta)+.15*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.3*Math.sin(theta)-.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)+.4*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.3*Math.sin(theta)+.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)-.4*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.6*Math.sin(theta)+.25*Math.cos(theta)),displaycoords(this.start[1]+.6*Math.cos(theta)-.25*Math.sin(theta)));
+				
+				ctx.moveTo(displaycoords(this.start[0]-.3*Math.sin(theta)-.4*Math.cos(theta)),displaycoords(this.start[1]+.3*Math.cos(theta)+.4*Math.sin(theta)));
+				ctx.lineTo(displaycoords(this.start[0]-.6*Math.sin(theta)-.55*Math.cos(theta)),displaycoords(this.start[1]+.6*Math.cos(theta)+.55*Math.sin(theta)));
+				ctx.stroke();
+			}
+		},
+		'Lamp':{
+			'texname':'lamp',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.5*unit[0]+.5),displaycoords(resstart[1]+.5*unit[1]));
+				ctx.arc(displaycoords(resstart[0]+.5*unit[0]),displaycoords(resstart[1]+.5*unit[1]),displaycoords(.5),0,2*Math.PI,true);
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.moveTo(displaycoords(resstart[0]+(.5-1.4142/4)*unit[0]+1.4142/4*unit[1]),displaycoords(resstart[1]+(.5-1.4142/4)*unit[1]-1.4142/4*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+(.5+1.4142/4)*unit[0]-1.4142/4*unit[1]),displaycoords(resstart[1]+(.5+1.4142/4)*unit[1]+1.4142/4*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+(.5+1.4142/4)*unit[0]+1.4142/4*unit[1]),displaycoords(resstart[1]+(.5+1.4142/4)*unit[1]-1.4142/4*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+(.5-1.4142/4)*unit[0]-1.4142/4*unit[1]),displaycoords(resstart[1]+(.5-1.4142/4)*unit[1]+1.4142/4*unit[0]));
+				ctx.stroke();
+			}
+		},
+		'Impedance':{
+			'texname':'generic',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Tunable Impedance':{
+			'texname':'tgeneric',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.moveTo(displaycoords(resstart[0]+.75*unit[0]-.5*unit[1]),displaycoords(resstart[1]+.75*unit[1]+.5*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.25*unit[0]+.5*unit[1]),displaycoords(resstart[1]+.25*unit[1]-.5*unit[0]));
+				ctx.stroke();
+				newcenter=[resstart[0]+.75*unit[0]-.5*unit[1],resstart[1]+.75*unit[1]+.5*unit[0]];
+				u2mag=Math.sqrt(Math.pow(2*unit[1],2)+Math.pow(unit[0],2));
+				unit2=[.5*unit[0]-unit[1],.5*unit[1]+unit[0]];
+				u2mag=Math.sqrt(Math.pow(unit2[1],2)+Math.pow(unit2[0],2));
+				unit2=[unit2[0]/u2mag,unit2[1]/u2mag];
+				//draw triangle
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(newcenter[0]),displaycoords(newcenter[1]));
+				ctx.lineTo(displaycoords(newcenter[0]-.1*unit2[0]+.1*unit2[1]),displaycoords(newcenter[1]-.1*unit2[1]-.1*unit2[0]));
+				ctx.lineTo(displaycoords(newcenter[0]-.1*unit2[0]-.1*unit2[1]),displaycoords(newcenter[1]-.1*unit2[1]+.1*unit2[0]));
+				ctx.lineTo(displaycoords(newcenter[0]),displaycoords(newcenter[1]));
+				ctx.fill();
+			}
+		},
+		'Asymetric Impedance':{
+			'texname':'ageneric',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(resstart[0]+.8*unit[0]-.2*unit[1]),displaycoords(resstart[1]+.8*unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]+.2*unit[1]),displaycoords(resstart[1]+.8*unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]-.2*unit[1]),displaycoords(resstart[1]+.8*unit[1]+.2*unit[0]));
+				ctx.fill();
+			}
+		},
+		'Full Asymetric Impedance':{
+			'texname':'fullgeneric',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+				ctx.fill();
+			}
+		},
+		'Tunable Full Asymetric Impedance':{
+			'texname':'tfullageneric',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+				ctx.fill();
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(resstart[0]+.75*unit[0]-.5*unit[1]),displaycoords(resstart[1]+.75*unit[1]+.5*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.25*unit[0]+.5*unit[1]),displaycoords(resstart[1]+.25*unit[1]-.5*unit[0]));
+				ctx.stroke();
+				newcenter=[resstart[0]+.75*unit[0]-.5*unit[1],resstart[1]+.75*unit[1]+.5*unit[0]];
+				u2mag=Math.sqrt(Math.pow(2*unit[1],2)+Math.pow(unit[0],2));
+				unit2=[.5*unit[0]-unit[1],.5*unit[1]+unit[0]];
+				u2mag=Math.sqrt(Math.pow(unit2[1],2)+Math.pow(unit2[0],2));
+				unit2=[unit2[0]/u2mag,unit2[1]/u2mag];
+				//draw triangle
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(newcenter[0]),displaycoords(newcenter[1]));
+				ctx.lineTo(displaycoords(newcenter[0]-.1*unit2[0]+.1*unit2[1]),displaycoords(newcenter[1]-.1*unit2[1]-.1*unit2[0]));
+				ctx.lineTo(displaycoords(newcenter[0]-.1*unit2[0]-.1*unit2[1]),displaycoords(newcenter[1]-.1*unit2[1]+.1*unit2[0]));
+				ctx.lineTo(displaycoords(newcenter[0]),displaycoords(newcenter[1]));
+				ctx.fill();
+				
+			}
+		},
+		'Memristor':{
+			'texname':'memristor',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.moveTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.1*unit[0]),displaycoords(resstart[1]+.1*unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+.1*unit[0]+.1*unit[1]),displaycoords(resstart[1]+.1*unit[1]-.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.3*unit[0]+.1*unit[1]),displaycoords(resstart[1]+.3*unit[1]-.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.3*unit[0]-.1*unit[1]),displaycoords(resstart[1]+.3*unit[1]+.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.5*unit[0]-.1*unit[1]),displaycoords(resstart[1]+.5*unit[1]+.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.5*unit[0]+.1*unit[1]),displaycoords(resstart[1]+.5*unit[1]-.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.7*unit[0]+.1*unit[1]),displaycoords(resstart[1]+.7*unit[1]-.1*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.7*unit[0]),displaycoords(resstart[1]+.7*unit[1]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(resstart[0]+.8*unit[0]-.2*unit[1]),displaycoords(resstart[1]+.8*unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]+.2*unit[1]),displaycoords(resstart[1]+.8*unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]-.2*unit[1]),displaycoords(resstart[1]+.8*unit[1]+.2*unit[0]));
+				ctx.fill();
+			}
+		},
+		'Variable Resistor':{
+			'texname':'american variable resistor',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Potentiometer':{
+			'texname':'american potentiometer',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Varistor':{
+			'texname':'varistor',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Photoresistor':{
+			'texname':'photoresistor',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Thermocouple':{
+			'texname':'thermocouple',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Thermistor':{
+			'texname':'thermistor',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'PTC Thermistor':{
+			'texname':'thermistor ptc',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'NTC Thermistor':{
+			'texname':'thermistor ntc',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Fuse':{
+			'texname':'fuse',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+			}
+		},
+		'Asymmetric Fuse':{
+			'texname':'afuse',
+			'isnode':false,
+			'drawfunc':function(){
+				ctx.beginPath();
+				udiv=Math.sqrt(Math.pow(this.end[0]-this.start[0],2)+Math.pow(this.end[1]-this.start[1],2));
+				unit=[(this.end[0]-this.start[0])/(udiv),(this.end[1]-this.start[1])/(udiv)];
+				ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
+				resstart=[(this.end[0]+this.start[0]-unit[0])/2,(this.end[1]+this.start[1]-unit[1])/2];
+				ctx.lineTo(displaycoords(resstart[0]),displaycoords(resstart[1]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.moveTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.2*unit[1]),displaycoords(resstart[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]-.2*unit[1]),displaycoords(resstart[1]+.2*unit[0]));
+				ctx.moveTo(displaycoords(resstart[0]+unit[0]),displaycoords(resstart[1]+unit[1]));
+				ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.moveTo(displaycoords(resstart[0]+.8*unit[0]-.2*unit[1]),displaycoords(resstart[1]+.8*unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]-.2*unit[1]),displaycoords(resstart[1]+unit[1]+.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+unit[0]+.2*unit[1]),displaycoords(resstart[1]+unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]+.2*unit[1]),displaycoords(resstart[1]+.8*unit[1]-.2*unit[0]));
+				ctx.lineTo(displaycoords(resstart[0]+.8*unit[0]-.2*unit[1]),displaycoords(resstart[1]+.8*unit[1]+.2*unit[0]));
+				ctx.fill();
+			}
+		},
+		
+		
+		
+	}	
 
 //Keyboard functions and shortcut detection (ctrl, ctrlz, ctrly, ctrlc, ctrl v, etc. most in future)
 	function keydownting(c){
@@ -145,10 +930,16 @@ margin:5px;
 	}
 	function keyupting(c){
 		KEYSPRESSED[c]=false;
+		if(c==8||c==46){
+			currentCircuit.delete(SELECTED);
+		}
 	}
 	
 //Select thingy in clickting
 	function clickting(e){
+		if(!KEYSPRESSED[17]){
+			SELECTED=[];
+		}
 		x=nativecoords(e.pageX);
 		y=nativecoords(e.pageY);
 		mindistsq=1;
@@ -169,17 +960,18 @@ margin:5px;
 				}
 			}
 		}
-		if(!added&&mindistsq<.25){//if we didnt add one for ridiculous closeness but still close enough
+		if(!added&&mindistsq<.20){//if we didnt add one for ridiculous closeness but still close enough
 			SELECTED.push(mindistnode);
 		}
+		redraw();
 	}
 
 //coordinate transforms for convenience, .05 rasterization size
 	function nativecoords(x){
-		return Math.round(x/(10*ZOOM))/2;
+		return Math.round(x/(10*ZOOM))/5;
 	}
 	function displaycoords(x){
-		return Math.round(ZOOM*x*20);
+		return Math.round(ZOOM*x*50);
 	}
 	
 //mouse tracking functions for draw mode
@@ -187,43 +979,89 @@ margin:5px;
 		MOUSEDOWN=true;
 		MOUSEDOWNCOORDS.x=nativecoords(e.pageX);
 		MOUSEDOWNCOORDS.y=nativecoords(e.pageY);
+		if(!ISCURRNODE){
+			NEWEL=new Element(NODENAME,complist[NODENAME]['texname'],ISCURRNODE,MOUSEDOWNCOORDS.x,MOUSEDOWNCOORDS.y,nativecoords(e.pageX),nativecoords(e.pageY),{});
+		}
+		else{
+			NEWEL=new Element(NODENAME,complist[NODENAME]['texname'],ISCURRNODE,MOUSEDOWNCOORDS.x,MOUSEDOWNCOORDS.y,nativecoords(e.pageX),nativecoords(e.pageY),{"rotate":0});
+		}
+		NEWEL.draw=complist[NODENAME]['drawfunc'];
 	}
 	function mousemoveting(e){
 		if(MOUSEDOWN){
 			redraw();
-			ctx.beginPath();
-			ctx.moveTo(displaycoords(MOUSEDOWNCOORDS.x),displaycoords(MOUSEDOWNCOORDS.y));
-			ctx.lineTo(displaycoords(nativecoords(e.pageX)),displaycoords(nativecoords(e.pageY)));
-			ctx.stroke();
+			NEWEL.end=[nativecoords(e.pageX),nativecoords(e.pageY)];
+			NEWEL.draw();
+			if(ISCURRNODE){
+				theta=Math.atan2(NEWEL.end[1]-NEWEL.start[1],NEWEL.end[0]-NEWEL.start[0]);
+				NEWEL.tag["rotate"]=90*Math.round((theta+Math.PI/4)*2/Math.PI);
+			}
 		}
 	}
 	function mouseupting(e){
 		MOUSEDOWN=false;
-		currentCircuit.addEl(new Element(ISCURRNODE,NODENAME,MOUSEDOWNCOORDS.x,MOUSEDOWNCOORDS.y,nativecoords(e.pageX),nativecoords(e.pageY)));
+		NEWEL.end=[nativecoords(e.pageX),nativecoords(e.pageY)];
+		if(ISCURRNODE){
+			if(NEWEL.propername=="Label"){
+				NEWEL.tag["l"]=prompt("Enter label value here:");
+			}
+		}
+		if(!(NEWEL.end[0]==NEWEL.start[0]&&NEWEL.start[1]==NEWEL.end[1])){
+			currentCircuit.addEl(NEWEL);
+		}
+		redraw();
 	}
 
 //drawing/redrawing function
 	function redraw(){
 		ctx.clearRect(0,0,CANX,CANY);
 		for(i=0;i<currentCircuit.elList.length;i++){
-			currentCircuit.elList[i].draw();
+			if(SELECTED.indexOf(i)==-1){
+				currentCircuit.elList[i].draw();
+			}else{
+				currentCircuit.elList[i].drawSel();
+			}
 		}
 	}
 
 //Circuit element class
-	function Element(isnode,elementname,startx,starty,endx,endy){
+	function Element(propername,elementname,isnode,startx,starty,endx,endy,labels){
+		this.propername=propername;
 		this.isnode=isnode;
 		this.elementname=elementname;
 		this.start=[startx,starty];
 		this.end=[endx,endy];
+		this.tag=labels;//tag/ labels is dictionary of properties. 
+						//has properties "rotate"\[0,90,180 etc] "i" [bool] "v" [bool] "l" [str]
 		this.toLATEX=function(){
-			return "lol";
+			if(!this.isnode){
+				ret="("+this.start[0]+","+(-this.start[1])+")"+"to["+this.elementname+",";
+				for(t in this.tag){
+					ret+=t;
+				}
+				return ret+"]("+this.end[0]+","+(-this.end[1])+")";
+			}else{
+				ret="("+this.start[0]+","+(-this.start[1])+")"+"to["+this.elementname+",";
+				for(t in this.tag){
+					ret+=t;
+				}
+				return ret+"]("+this.end[0]+","+(-this.end[1])+")";
+			}
 		}
 		this.draw=function(){
 			ctx.beginPath();
 			ctx.moveTo(displaycoords(this.start[0]),displaycoords(this.start[1]));
 			ctx.lineTo(displaycoords(this.end[0]),displaycoords(this.end[1]));
 			ctx.stroke();
+		}
+		this.drawSel=function(){
+			ctx.lineWidth=3.0;
+			ctx.strokeStyle='orange';
+			ctx.fillStyle='orange';
+			this.draw();
+			ctx.lineWidth=1.0;
+			ctx.strokeStyle='black';
+			ctx.fillStyle='black';
 		}
 	}
 
@@ -236,54 +1074,90 @@ margin:5px;
 			this.elList.push(el);
 		}
 		this.toLATEX=function(){
-			return "\\begin{circuitikz}draw"+""+";\\end{circuitikz}";
+			ret="\\begin{circuitikz}\\draw";
+			for(i=0;i<this.elList.length;i++){
+				ret+=this.elList[i].toLATEX();
+			}
+			return (ret+";\\end{circuitikz}");
 		}
 		this.delete=function(delList){
-			for(i=0;i<delList.length;i++){
+			delList=delList.sort(function(a,b){return a-b;});
+			while(delList.length>0){
 				this.elList.splice(delList.pop(),1);
 			}
 			redraw();
 		}
 	}
-	currentCircuit=new Circuit();
 
 //Do the search thingy with the header searchbar
 	function searchkeyting(k){
+		serlist=[];
 		
+		
+		populateComponents("all");
 	}
-	
-//Make components as JS object
-	complist={
-		'Wire':{
-			
-		},
-		'Resistor':{
-		
-		},
-		'Capacitor':{
-		
-		},
-		'Inductor':{
-		
-		},
-		'Voltage Source':{
-		
-		},
-		'Current Source':{
-		
-		},
-		'Controlled Voltage Source':{
-		
-		},
-		'Controlled Current Source':{
-		
-		},
-		
-	}
-	
-//Choose selected node thingy
-	function chooseEl(that){
+
+//Choose selected node/connector thingy
+	function chooseEl(that,what){
+		panelslist=document.getElementsByClassName("paneloption");
+		//kinda shitty way to do it, but it works. Could use querySelect or jquery instead for faster performance if necessary
+		for(i=0;i<panelslist.length;i++){
+			panelslist[i].className="paneloption";
+		}
 		that.className="paneloption active";
+		NODENAME=what;
+		ISCURRNODE=complist[what]['isnode'];
 	}
+	
+//Function to fill up the draw panel with all avaliable components.
+	function populateComponents(which){
+		newpanelcontents="";
+		use=which;
+		if(which=="all"){use=Object.keys(complist);}
+		//sample of final after 1 loop iteration:
+		//<div class="paneloption" onclick="chooseEl(this);"><img src=""/><b>Wire</b><br/>[connector]: '--' </div>
+		for (i=0;i<use.length;i++){
+			e=use[i];
+			newpanelcontents+="<div class='paneloption"
+			if(NODENAME==e){newpanelcontents+=" active";}
+			newpanelcontents+="' onclick='chooseEl(this,\""+e+"\");'><img src=''/><b>"+e+"</b><br/>[";
+			if(complist[e]['isnode']){newpanelcontents+='node';}
+			else{newpanelcontents+='connector';}
+			newpanelcontents+="]: <span class='tikzname'>'"+complist[e]['texname']+"'</span></div>";
+		}
+		document.getElementById("draw_panelopts").innerHTML=newpanelcontents;
+	}
+
+//Function to load 
+	function loadfile(filob){
+		fread=new FileReader();
+		ftext=fread.readAsText(filob);
+		currentCircuit=JSON.parse(ftext);
+		sampleEl=new Element(NODENAME,complist[NODENAME]['texname'],ISCURRNODE,MOUSEDOWNCOORDS.x,MOUSEDOWNCOORDS.y,nativecoords(e.pageX),nativecoords(e.pageY),{});
+		for(i=0;i<currentCircuit.elList.length;i++){
+			currentCircuit.elList[i].draw=complist[currentCircuit.elList[i].propername].drawfunc;
+			currentCircuit.elList[i].drawSel=sampleEl.drawSel;
+			currentCircuit.elList[i].toLATEX=sampleEl.toLATEX;
+		}
+		redraw();
+		currentCircuit.addEl=function(el){
+			this.elList.push(el);
+		}
+		currentCircuit.toLATEX=function(){
+			ret="\\begin{circuitikz}\\draw";
+			for(i=0;i<this.elList.length;i++){
+				ret+=this.elList[i].toLATEX();
+			}
+			return (ret+";\\end{circuitikz}");
+		}
+		currentCircuit.delete=function(delList){
+			delList=delList.sort(function(a,b){return a-b;});
+			while(delList.length>0){
+				this.elList.splice(delList.pop(),1);
+			}
+			redraw();
+		}
+	}
+	
 
 </script>
