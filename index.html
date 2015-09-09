@@ -1,101 +1,101 @@
 <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'>
 <style type="text/CSS">
-body{
-font-family: 'Open Sans' Arial sans-serif;
-}
-#toolbar{
-position:fixed;
-bottom:0px;
-left:50%;
-margin-left:-180px;
-width:360px;
-background-color:#cccccc;
-border:1px solid #b3b3b3;
-border-radius:5px;
-padding:10px;
-}
-#panel{
-position:fixed;
-top:0px;
-right:0px;
-width:350px;
-height:100%;
-background-color:#cccccc;
-background:linear-gradient(#e6e6e6,#cccccc);
-border:1px solid #b0b0b0;
-overflow-y:scroll;
-}
-.paneltitle{
-position:fixed;
-background-color:#b0b0b0;
-background:linear-gradient(#d0d0d0,#c0c0c0);
-position:absolute;
-left:0px;
-top:0px;
-width:100%;
-box-shadow:0px 3px 5px 1px #333333;
-z-index:5;
-}
-.paneltitle p{
-margin:5px;
-}
-.paneltitle #searchbox{
-	padding:5px;
-	width:100%;
-}
-.paneloption{
-	position:relative;
-	top:6em;
-	border-bottom:1px solid #a0a0a0;
-	height:60px;
-	padding-left:70px;
-	cursor:pointer;
-}
-.paneloption img{
-	position:absolute;
-	left:0px;
+	body{
+	font-family: 'Open Sans' Arial sans-serif;
+	}
+	#toolbar{
+	position:fixed;
+	bottom:0px;
+	left:50%;
+	margin-left:-180px;
+	width:360px;
+	background-color:#cccccc;
+	border:1px solid #b3b3b3;
+	border-radius:5px;
+	padding:10px;
+	}
+	#panel{
+	position:fixed;
 	top:0px;
-	height:60px;
-	width:60px;
-	background-color:white;
-}
-.paneloptionset{
-	position:absolute;
-	left:0px;
-	width:100%;
-	display:none;
-}
-.paneloption.active{
-	background-color:rgba(0,0,0,.1);
-	box-shadow:inset 0px 0px 4px 2px #333333;
-}
-.paneloption:hover{
-	background-color:rgba(0,0,0,.05);
-}
-.exportwarning{
-	font-size:.8em;
-	font-family:monospace;
-}
-.tikzname{
-	font-size:.8em;
-	font-family:monospace;
-}
-#fileimport{
-	position:absolute;
-	left:0px;
-	top:0px;
+	right:0px;
+	width:350px;
 	height:100%;
-	width:100%;
-	background-color:rgba(0,0,0,.2);;
-	display:none;
-	text-align:center;
-	z-index:10;
-}
-#fileimport input{
+	background-color:#cccccc;
+	background:linear-gradient(#e6e6e6,#cccccc);
+	border:1px solid #b0b0b0;
+	overflow-y:scroll;
+	}
+	.paneltitle{
+	position:fixed;
+	background-color:#b0b0b0;
+	background:linear-gradient(#d0d0d0,#c0c0c0);
 	position:absolute;
-	left:45%;
-	top:50%;
-}
+	left:0px;
+	top:0px;
+	width:100%;
+	box-shadow:0px 3px 5px 1px #333333;
+	z-index:5;
+	}
+	.paneltitle p{
+	margin:5px;
+	}
+	.paneltitle #searchbox{
+		padding:5px;
+		width:100%;
+	}
+	.paneloption{
+		position:relative;
+		top:6em;
+		border-bottom:1px solid #a0a0a0;
+		height:60px;
+		padding-left:70px;
+		cursor:pointer;
+	}
+	.paneloption img{
+		position:absolute;
+		left:0px;
+		top:0px;
+		height:60px;
+		width:60px;
+		background-color:white;
+	}
+	.paneloptionset{
+		position:absolute;
+		left:0px;
+		width:100%;
+		display:none;
+	}
+	.paneloption.active{
+		background-color:rgba(0,0,0,.1);
+		box-shadow:inset 0px 0px 4px 2px #333333;
+	}
+	.paneloption:hover{
+		background-color:rgba(0,0,0,.05);
+	}
+	.exportwarning{
+		font-size:.8em;
+		font-family:monospace;
+	}
+	.tikzname{
+		font-size:.8em;
+		font-family:monospace;
+	}
+	#fileimport{
+		position:absolute;
+		left:0px;
+		top:0px;
+		height:100%;
+		width:100%;
+		background-color:rgba(0,0,0,.2);;
+		display:none;
+		text-align:center;
+		z-index:10;
+	}
+	#fileimport input{
+		position:absolute;
+		left:45%;
+		top:50%;
+	}
 </style>
 <body onkeydown="keydownting(event.which);" onkeyup="keyupting(event.which);" onload="initscreen();">
 <canvas id="cancan" height="500" width="700" onmousedown="if(MODE=='draw'){mousedownting(event);}" onmousemove="if(MODE=='draw'){mousemoveting(event);}" onmouseup="if(MODE=='draw'){mouseupting(event);}" onclick="if(MODE=='select'){clickting(event);}"  style="position:absolute;left:0px;top:0px;"></canvas>
@@ -113,7 +113,9 @@ margin:5px;
 </div>
 
 <div id="panel">
-	<div class="paneltitle"><p>CIRC.EDIT<br/>Currently in <span id="modeindicator" style="text-decoration:underline"></span> mode.<br/></p><input type="text" placeholder="Search!" id="searchbox" onkeypress="searchkeyting(event.which);"/>
+	<div class="paneltitle">
+		<p>CIRC.EDIT<br/>Currently in <span id="modeindicator" style="text-decoration:underline"></span> mode.<br/></p>
+		<input type="text" placeholder="Search!" id="searchbox" onkeypress="searchkeyting(event.which);"/>
 	</div>
 	<div class="paneloptionset" id="draw_panelopts" style="display:block;">
 
@@ -1928,9 +1930,20 @@ margin:5px;
 //Do the search thingy with the header searchbar
 	function searchkeyting(k){
 		serlist=[];
-
-
-		populateComponents("all");
+		empty=true;
+		keylist=Object.keys(complist);
+		for(i=0;i<keylist.length;i++){
+			if(keylist[i].search(document.getElementById("searchbox").value)!=-1){
+				empty=false;
+				serlist.push(complist[keylist[i]]);
+			}
+		}
+		if(!empty){
+			populateComponents(serlist);
+		}
+		else{
+			populateComponents("all");
+		}
 	}
 
 //Choose selected node/connector thingy
